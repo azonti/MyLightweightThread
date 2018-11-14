@@ -40,7 +40,7 @@ void schd() {
 
 
 sigset_t onlyalrm;
-struct timeval tv0;
+struct timeval tv;
 void *for_stdout = "kakikomitai";
 
 void alrm_handler(int unused) {
@@ -57,7 +57,7 @@ void th_for_stdout(int unused) {
   block_alrm();
 
   while (1) {
-    if (select(STDOUT_FILENO+1, NULL, &wfds, NULL, &tv0) == 1) notify_any((void *)for_stdout);
+    if (select(STDOUT_FILENO+1, NULL, &wfds, NULL, &tv) == 1) notify_any((void *)for_stdout);
     yield();
   }
 
@@ -83,8 +83,8 @@ void start_schd() {
 
   rnng++;
 
-  tv0.tv_sec = 999999999;
-  tv0.tv_usec = 0;
+  tv.tv_sec = 999999999;
+  tv.tv_usec = 0;
 
   start_thread(new_thread(th_for_stdout, 0));
 
