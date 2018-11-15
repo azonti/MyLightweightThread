@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <unistd.h>
 #include <signal.h>
 #include <sys/time.h>
@@ -10,12 +11,13 @@
 
 #include "mythread.h"
 
-
-
 struct mythread thrds[MAXTHREADS];
-int rnng = -2;
+int rnng = 0;
 int last_notified = -1;
 struct context *schdctx;
+sigset_t onlyalrm;
+void *for_stdin  = "yomikomitai";
+void *for_stdout = "kakikomitai";
 
 void schd() {
   int alive = 2;
@@ -37,34 +39,60 @@ void schd() {
   }
 }
 
-
-
-sigset_t onlyalrm;
-struct timeval tv;
-void *for_stdout = "kakikomitai";
-
 void alrm_handler(int unused) {
   yield();
-
   (void)unused;
 }
 
-void th_for_stdout(int unused) {
-  fd_set wfds;
-  FD_ZERO(&wfds);
-  FD_SET(STDOUT_FILENO, &wfds);
+void notifier(int unused) {
+  int mfd = STDIN_FILENO;
+  if (mfd < STDOUT_FILENO) mfd = STDOUT_FILENO;
 
-  block_alrm();
+  struct timeval tv;
+  tv.tv_sec = 0;
+  tv.tv_usec = 0;
 
+  fd_set rfds, wfds;
+
+  atomic_begin();
   while (1) {
-    if (select(STDOUT_FILENO+1, NULL, &wfds, NULL, &tv) == 1) notify_any((void *)for_stdout);
+    FD_ZERO(&rfds);
+    FD_SET(STDIN_FILENO, &rfds);
+    FD_ZERO(&wfds);
+    FD_SET(STDOUT_FILENO, &wfds);
+
+    if (select(mfd+1, &rfds, &wfds, NULL, &tv) > 0) {
+      if (FD_ISSET(STDIN_FILENO, &rfds)) notify_any((void *)for_stdin);
+      if (FD_ISSET(STDOUT_FILENO, &wfds)) notify_any((void *)for_stdout);
+    }
+
     yield();
   }
 
   (void)unused;
 }
 
-void start_schd() {
+
+
+mythread_t new_thread(void (*fun)(int), int arg) {
+  int i;
+  for (i = 0; i < MAXTHREADS; i++) if (thrds[i].state == MT_UNUSED) break;
+  if (i == MAXTHREADS) return NULL;
+
+  thrds[i].stack = malloc(STACKSIZE);
+  if (!thrds[i].stack) return NULL;
+  thrds[i].state = MT_EMBRYO;
+  thrds[i].ctx = new_context((char *)thrds[i].stack + STACKSIZE - 1, atomic_finish, fun, arg, th_exit);
+  thrds[i].atomic_dpth = 1;
+
+  return &thrds[i];
+}
+
+void start_threads() {
+  new_thread(notifier, 0);
+
+  for (int i = 0; i < MAXTHREADS; i++) if (thrds[i].state == MT_EMBRYO) thrds[i].state = MT_READY;
+
   sigemptyset(&onlyalrm);
   sigaddset(&onlyalrm, SIGVTALRM);
   sigprocmask(SIG_BLOCK, &onlyalrm, NULL);
@@ -81,134 +109,98 @@ void start_schd() {
   it.it_interval.tv_usec = 1;
   setitimer(ITIMER_VIRTUAL, &it, NULL);
 
-  rnng++;
-
-  tv.tv_sec = 999999999;
-  tv.tv_usec = 0;
-
-  start_thread(new_thread(th_for_stdout, 0));
-
   schd();
 }
 
 
 
-mythread_t new_thread(void (*fun)(int), int arg) {
-  block_alrm();
-
-  int i;
-  for (i = 0; i < MAXTHREADS; i++) if (thrds[i].state == MT_UNUSED) break;
-  if (i == MAXTHREADS) return NULL;
-
-  thrds[i].stack = malloc(STACKSIZE);
-  if (!thrds[i].stack) return NULL;
-  thrds[i].state = MT_EMBRYO;
-  thrds[i].ctx = new_context((char *)thrds[i].stack + STACKSIZE - 1, unblock_alrm, fun, arg, th_exit);
-  thrds[i].block_dpth = 1;
-
-  unblock_alrm();
-
-  return &thrds[i];
-}
-
-void start_thread(mythread_t th) {
-  if (rnng >= 0) block_alrm();
-
-  if (th->state == MT_EMBRYO) th->state = MT_READY;
-
-  if (rnng >= 0) unblock_alrm();
-
-  if (rnng < -1) start_schd();
-
-}
-
-void start_threads() {
-  if (rnng >= 0) block_alrm();
-
-  for (int i = 0; i < MAXTHREADS; i++) if (thrds[i].state == MT_EMBRYO) thrds[i].state = MT_READY;
-
-  if (rnng >= 0) unblock_alrm();
-
-  if (rnng < -1) start_schd();
-}
-
 void yield() {
-  block_alrm();
-
+  atomic_begin();
   thrds[rnng].state = MT_READY;
   swtch(&thrds[rnng].ctx, schdctx);
-
-  unblock_alrm();
+  atomic_finish();
 }
 
 void th_exit() {
-  block_alrm();
-
+  atomic_begin();
   thrds[rnng].state = MT_ZOMBIE;
   swtch(&thrds[rnng].ctx, schdctx);
 }
 
 void wait(void *a) {
-  block_alrm();
-
+  atomic_begin();
   thrds[rnng].state = MT_SLEEPING;
   thrds[rnng].chan = a;
   swtch(&thrds[rnng].ctx, schdctx);
-
-  unblock_alrm();
+  atomic_finish();
 }
 
 void notify(mythread_t thrd, void *a) {
-  block_alrm();
-
+  atomic_begin();
   if (thrd->chan != a) return;
   thrd->state = MT_READY;
   thrd->chan = NULL;
-
-  unblock_alrm();
+  atomic_finish();
 }
 
 void notify_all(void *a) {
-  block_alrm();
-
+  atomic_begin();
   for (int i = 0; i < MAXTHREADS; i++) {
     if (thrds[i].chan != a) continue;
     thrds[i].state = MT_READY;
     thrds[i].chan = NULL;
   }
-
-  unblock_alrm();
+  atomic_finish();
 }
 
 void notify_any(void *a) {
-  block_alrm();
-
+  atomic_begin();
   for (int i = last_notified + 1; i < MAXTHREADS; i++) {
     if (thrds[i].chan != a) continue;
     thrds[i].state = MT_READY;
     thrds[i].chan = NULL;
     last_notified = i;
-    return;
+    goto BREAK;
   }
   for (int i = 0; i < MAXTHREADS; i++) {
     if (thrds[i].chan != a) continue;
     thrds[i].state = MT_READY;
     thrds[i].chan = NULL;
     last_notified = i;
-    return;
+    goto BREAK;
   }
-
-  unblock_alrm();
+BREAK:
+  atomic_finish();
 }
 
-
-
-void block_alrm() {
+void atomic_begin() {
   sigprocmask(SIG_BLOCK, &onlyalrm, NULL);
-  thrds[rnng].block_dpth++;
+  thrds[rnng].atomic_dpth++;
 }
 
-void unblock_alrm() {
-  thrds[rnng].block_dpth--;
-  if (thrds[rnng].block_dpth == 0) sigprocmask(SIG_UNBLOCK, &onlyalrm, NULL);
+void atomic_finish() {
+  thrds[rnng].atomic_dpth--;
+  if (thrds[rnng].atomic_dpth == 0) sigprocmask(SIG_UNBLOCK, &onlyalrm, NULL);
+}
+
+int th_scanf(const char *fmt, ...) {
+  va_list ap;
+  char str[256];
+  va_start(ap, fmt);
+  wait(for_stdin);
+  read(STDIN_FILENO, &str, 256);
+  int ret = vsscanf(str, fmt, ap);
+  va_end(ap);
+  return ret;
+}
+
+int th_printf(const char *fmt, ...) {
+  va_list ap;
+  char str[256];
+  va_start(ap, fmt);
+  int ret = vsprintf(str, fmt, ap);
+  wait(for_stdout);
+  write(STDOUT_FILENO, &str, ret);
+  va_end(ap);
+  return ret;
 }

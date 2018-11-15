@@ -17,23 +17,29 @@ typedef struct mythread {
   void *stack;
   struct context *ctx;
   void *chan;
-  int block_dpth;
+  int atomic_dpth;
 } *mythread_t;
 
+// callable only before starting threads
 mythread_t new_thread(void (*fun)(int), int arg);
-void start_thread(mythread_t th);
 void start_threads();
+
+// callable only in threads
 void yield();
 void th_exit();
 void wait(void *a);
 void notify(mythread_t th, void *a);
 void notify_all(void *a);
 void notify_any(void *a);
+void atomic_begin();
+void atomic_finish();
 
 // wait for what ?
+extern void *for_stdin;
 extern void *for_stdout;
 
-// critical functions
-void block_alrm();
-void unblock_alrm();
-#define printf(fmt, ...) { block_alrm(); printf(fmt, __VA_ARGS__); unblock_alrm(); }
+// alternatives for unsafe & blocking functions
+int th_scanf(const char *fmt, ...);
+int th_printf(const char *fmt, ...);
+#define scanf th_scanf
+#define printf th_printf

@@ -2,9 +2,10 @@
 
 #include "mythread.h"
 
+char input[256];
+
 void foo(int c) {
     while (1) {
-        wait(for_stdout);
         printf("foo : %d\n", c);
         c += 1;
     }
@@ -12,21 +13,16 @@ void foo(int c) {
 
 void bar(int c) {
     while (1) {
-        wait(for_stdout);
-        printf("bar : %d\n", c);
-        c += 2;
+        scanf("%s", input);
     }
+    (void)c;
 }
 
 void baz(int c) {
     while (1) {
-        wait(for_stdout);
-        printf("baz : %d\n", c);
-        c += 3;
-        wait(for_stdout);
-        printf("baz : %d\n", c);
-        c += 3;
+        printf("%s\n", input);
     }
+    (void)c;
 }
 
 int main() {
