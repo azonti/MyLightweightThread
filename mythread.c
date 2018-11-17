@@ -88,17 +88,6 @@ mythread_t new_thread(void (*fun)(int), int arg) {
   return &thrds[i];
 }
 
-void start_threads_dp() {
-  new_thread(notifier, 0);
-
-  for (int i = 0; i < MAXTHREADS; i++) if (thrds[i].state == MT_EMBRYO) thrds[i].state = MT_READY;
-  sigemptyset(&onlyalrm);
-  sigaddset(&onlyalrm, SIGVTALRM);
-  sigprocmask(SIG_BLOCK, &onlyalrm, NULL);
-
-  schd();
-}
-
 void start_threads() {
   new_thread(notifier, 0);
 
@@ -118,6 +107,17 @@ void start_threads() {
   it.it_interval.tv_sec = 0;
   it.it_interval.tv_usec = 1;
   setitimer(ITIMER_VIRTUAL, &it, NULL);
+
+  schd();
+}
+
+void start_threads_dp() {
+  new_thread(notifier, 0);
+
+  for (int i = 0; i < MAXTHREADS; i++) if (thrds[i].state == MT_EMBRYO) thrds[i].state = MT_READY;
+  sigemptyset(&onlyalrm);
+  sigaddset(&onlyalrm, SIGVTALRM);
+  sigprocmask(SIG_BLOCK, &onlyalrm, NULL);
 
   schd();
 }
@@ -195,32 +195,59 @@ void atomic_finish() {
 
 
 
+int th_scanf_dnb(const char *fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+
+  atomic_begin();
+  int n = vscanf(fmt, ap);
+  atomic_finish();
+
+  va_end(ap);
+  return n;
+}
+
+int th_printf_dnb(const char *fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+
+  atomic_begin();
+  int len = vprintf(fmt, ap);
+  atomic_finish();
+
+  va_end(ap);
+  return len;
+}
+
 int th_scanf(const char *fmt, ...) {
   va_list ap;
-  char str[1024];
-
   va_start(ap, fmt);
-  wait(for_stdin);
-  read(STDIN_FILENO, &str, 256);
-  atomic_begin();
-  int ret = vsscanf(str, fmt, ap);
-  atomic_finish();
-  va_end(ap);
 
-  return ret;
+  char str[1024];
+  wait(for_stdin);
+  int len = read(STDIN_FILENO, &str, 1023);
+  str[len] = '\0';
+
+  atomic_begin();
+  int n = vsscanf(str, fmt, ap);
+  atomic_finish();
+
+  va_end(ap);
+  return n;
 }
 
 int th_printf(const char *fmt, ...) {
   va_list ap;
-  char str[1024];
-
   va_start(ap, fmt);
-  atomic_begin();
-  int ret = vsprintf(str, fmt, ap);
-  atomic_finish();
-  wait(for_stdout);
-  write(STDOUT_FILENO, &str, ret);
-  va_end(ap);
 
-  return ret;
+  char str[1024];
+  atomic_begin();
+  int len = vsnprintf(str, 1024, fmt, ap);
+  atomic_finish();
+
+  wait(for_stdout);
+  int len2 = write(STDOUT_FILENO, &str, len);
+
+  va_end(ap);
+  return len2;
 }

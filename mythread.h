@@ -22,10 +22,11 @@ typedef struct mythread {
 
 // callable only before starting threads
 mythread_t new_thread(void (*fun)(int), int arg);
-void start_threads();
-void start_threads_dp();
 #ifdef MT_DISABLE_PREEMPTION
+void start_threads_dp();
 #define start_threads start_threads_dp
+#else
+void start_threads();
 #endif
 
 // callable only in threads
@@ -43,12 +44,14 @@ extern void *for_stdin;
 extern void *for_stdout;
 
 // alternatives for unsafe or blocking functions
+#ifdef MT_DISABLE_NONBLOCKING_IO
+int th_scanf_dnb(const char *fmt, ...);
+int th_printf_dnb(const char *fmt, ...);
+#define scanf th_scanf_dnb
+#define printf th_printf_dnb
+#else
 int th_scanf(const char *fmt, ...);
 int th_printf(const char *fmt, ...);
-#ifdef MT_DISABLE_NONBLOCKING_IO
-#define scanf(fmt, ...) { atomic_begin(); scanf(fmt, __VA_ARGS__); atomic_finish(); }
-#define printf(fmt, ...) { atomic_begin(); printf(fmt, __VA_ARGS__); atomic_finish(); }
-#else
 #define scanf th_scanf
 #define printf th_printf
 #endif
