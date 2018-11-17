@@ -1,5 +1,4 @@
 #include <stdio.h>
-
 #include "mythread.h"
 
 char input[256];

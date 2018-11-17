@@ -1,5 +1,6 @@
 #include <stdio.h>
-
+#define MT_DISABLE_PREEMPTION
+#define MT_DISABLE_NONBLOCKING_IO
 #include "mythread.h"
 
 mythread_t th_foo;

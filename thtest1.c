@@ -1,12 +1,8 @@
-/*
- * swtest
- * Simple examples for understanding the usage of xv6 swtch
- * Copyright (C) 2017 Takuo Watanabe
- */
-
 #include <stdio.h>
-
+#define MT_DISABLE_PREEMPTION
+#define MT_DISABLE_NONBLOCKING_IO
 #include "mythread.h"
+
 
 void foo(int c) {
     while (1) {

@@ -1,5 +1,5 @@
 #include <stdio.h>
-
+#define MT_DISABLE_NONBLOCKING_IO
 #include "mythread.h"
 
 void foo(int c) {
