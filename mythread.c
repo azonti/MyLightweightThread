@@ -116,8 +116,6 @@ void start_threads_dp() {
 
   for (int i = 0; i < MAXTHREADS; i++) if (thrds[i].state == MT_EMBRYO) thrds[i].state = MT_READY;
   sigemptyset(&onlyalrm);
-  sigaddset(&onlyalrm, SIGVTALRM);
-  sigprocmask(SIG_BLOCK, &onlyalrm, NULL);
 
   schd();
 }
