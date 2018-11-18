@@ -4,7 +4,7 @@ OUTS     = thtest1 thtest2 thtest3 thtest4 thtest5
 CC       = gcc
 RM       = rm -f
 CPPFLAGS =
-CFLAGS   = -std=c11 -Wall -Wextra -Werror -pedantic-errors -O0 -g -m32 -mstackrealign
+CFLAGS   = -std=c11 -D_ISOC11_SOURCE -Wall -Wextra -Werror -pedantic-errors -O0 -g -m32 -mstackrealign
 LDFLAGS  =
 
 .PHONY: all clean
