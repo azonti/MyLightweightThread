@@ -5,8 +5,13 @@
 # Save current register context in old
 # and then load register context from new.
 
+#if defined(__APPLE__) && defined(__MACH__)
+.globl _swtch
+_swtch:
+#else
 .globl swtch
 swtch:
+#endif
   movl 4(%esp), %eax
   movl 8(%esp), %edx
 

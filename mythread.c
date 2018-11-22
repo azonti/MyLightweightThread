@@ -135,7 +135,7 @@ void th_exit() {
   swtch(&thrds[rnng].ctx, schdctx);
 }
 
-void wait(void *a) {
+void th_wait(void *a) {
   atomic_begin();
   thrds[rnng].state = MT_SLEEPING;
   thrds[rnng].chan = a;

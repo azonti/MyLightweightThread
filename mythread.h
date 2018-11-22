@@ -32,7 +32,8 @@ void start_threads();
 // callable only in threads
 void yield();
 void th_exit();
-void wait(void *a);
+#define wait th_wait // there is wait() in POSIX.1-2008 @_@
+void th_wait(void *a);
 void notify(mythread_t th, void *a);
 void notify_all(void *a);
 void notify_any(void *a);
