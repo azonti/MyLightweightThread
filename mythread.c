@@ -193,6 +193,8 @@ void atomic_finish() {
 
 
 
+#define BUFLEN (1024)
+
 int th_scanf_dnb(const char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
@@ -221,13 +223,13 @@ int th_scanf(const char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
 
-  char str[1024];
+  char buf[BUFLEN];
   wait(for_stdin);
-  int len = read(STDIN_FILENO, &str, 1023);
-  str[len] = '\0';
+  int len = read(STDIN_FILENO, &buf, BUFLEN-1);
+  buf[len] = '\0';
 
   atomic_begin();
-  int n = vsscanf(str, fmt, ap);
+  int n = vsscanf(buf, fmt, ap);
   atomic_finish();
 
   va_end(ap);
@@ -238,13 +240,14 @@ int th_printf(const char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
 
-  char str[1024];
+  char buf[BUFLEN];
   atomic_begin();
-  int len = vsnprintf(str, 1024, fmt, ap);
+  int len = vsnprintf(buf, BUFLEN, fmt, ap);
   atomic_finish();
+  len = (len < BUFLEN-1) ? len : BUFLEN-1;
 
   wait(for_stdout);
-  int len2 = write(STDOUT_FILENO, &str, len);
+  int len2 = write(STDOUT_FILENO, &buf, len);
 
   va_end(ap);
   return len2;
